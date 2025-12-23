@@ -1,5 +1,4 @@
-#ifndef H_BIT_MATRIX
-#define H_BIT_MATRIX
+#pragma once
 
 #ifdef BITMATRIX_UNIT_TEST
 #define BITMATRIX_CHECK(x,y,w,h) if (x>=w || y>=h) throw "Index out of bounds"
@@ -218,5 +217,4 @@ public:
 
 };
 
-#endif // H_BIT_MATRIX
 

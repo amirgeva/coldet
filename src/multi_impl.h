@@ -21,8 +21,7 @@
  *
  * Or visit the home page: http://sourceforge.net/projects/coldet/
  */
-#ifndef H_COLDET_MULTI_OBJECT_IMPL
-#define H_COLDET_MULTI_OBJECT_IMPL
+#pragma once
 
 #include "multiobject.h"
 #include "cdmath3d.h"
@@ -302,5 +301,4 @@ public:
 
 __CD__END
 
-#endif // H_COLDET_MULTI_OBJECT_IMPL
 

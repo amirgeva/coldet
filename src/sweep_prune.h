@@ -21,8 +21,7 @@
  *
  * Or visit the home page: http://sourceforge.net/projects/coldet/
  */
-#ifndef H_COLDET_SWEEP_PRUNE
-#define H_COLDET_SWEEP_PRUNE
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -400,4 +399,3 @@ public:
 
 __CD__END
 
-#endif // H_COLDET_SWEEP_PRUNE

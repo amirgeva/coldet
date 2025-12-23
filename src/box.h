@@ -21,8 +21,7 @@
  *
  * Or visit the home page: http://sourceforge.net/projects/coldet/
  */
-#ifndef H_BOX
-#define H_BOX
+#pragma once
 
 #include <vector>
 #include "cdmath3d.h"
@@ -210,4 +209,3 @@ public:
 
 __CD__END
 
-#endif // H_BOX

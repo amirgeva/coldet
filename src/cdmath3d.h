@@ -21,8 +21,7 @@
  *
  * Or visit the home page: http://sourceforge.net/projects/coldet/
  */
-#ifndef H_cdmath3d
-#define H_cdmath3d
+#pragma once
 
 #include <cmath>
 #include <iostream>
@@ -361,4 +360,3 @@ inline T Min(T a, T b)
 #undef _43
 #undef _44
 
-#endif // H_cdmath3d

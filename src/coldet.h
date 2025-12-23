@@ -27,8 +27,7 @@
     Interface for the library.  
     Isolated from any implementation details.
 */
-#ifndef H_COLDET
-#define H_COLDET
+#pragma once
 
 #ifndef EXPORT
 #define EXPORT
@@ -182,4 +181,3 @@ EXPORT bool SphereSphereCollision(float c1[3], float r1,
 
 
 
-#endif // H_COLDET

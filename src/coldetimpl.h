@@ -21,12 +21,12 @@
  *
  * Or visit the home page: http://sourceforge.net/projects/coldet/
  */
-#ifndef H_COLDET_IMPL
-#define H_COLDET_IMPL
+#pragma once
 
 #include "coldet.h"
 #include "box.h"
 #include "cdmath3d.h"
+#include "utils.h"
 #include <vector>
 
 __CD__BEGIN
@@ -107,4 +107,3 @@ public:
 
 __CD__END
 
-#endif // H_COLDET_IMPL

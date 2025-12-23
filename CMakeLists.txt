@@ -39,18 +39,7 @@ endif()
 # ---- Tests (gtest) ----
 include(CTest)
 if(BUILD_TESTING)
-  include(FetchContent)
-
-  # GoogleTest
-  FetchContent_Declare(
-    googletest
-    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
-  )
-
-  # For MSVC: keep the same CRT across targets
-  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-
-  FetchContent_MakeAvailable(googletest)
+  find_package(GTest REQUIRED)
 
   add_executable(coldet_unit_tests
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/main.cpp"

@@ -30,6 +30,7 @@ target_include_directories(coldet
 
 # ---- Optional dependency: TBB ----
 find_package(TBB QUIET)
+find_package(Eigen3 REQUIRED)
 
 if(TBB_FOUND)
   target_compile_definitions(coldet PUBLIC USE_TBB=1)
@@ -56,6 +57,9 @@ if(BUILD_TESTING)
     target_compile_definitions(coldet_unit_tests PRIVATE USE_TBB=1)
   endif()
 
-  include(GoogleTest)
-  gtest_discover_tests(coldet_unit_tests)
 endif()
+
+add_subdirectory(obb)
+add_subdirectory(benchmark)
+add_subdirectory(tests)
+

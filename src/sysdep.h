@@ -29,7 +29,7 @@
 ///////////////////////////////////////////////////
 // Windows compilers
 ///////////////////////////////////////////////////
-#if defined(WIN32) and defined(_WDLL)
+#if defined(WIN32) && defined(_WDLL)
   #ifndef EXPORT
     #ifdef COLDET_EXPORTS
       #define EXPORT __declspec(dllexport)

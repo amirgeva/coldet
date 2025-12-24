@@ -145,8 +145,8 @@
   }                                         \
 }
 
-int coplanar_tri_tri(float N[3],float V0[3],float V1[3],float V2[3],
-                     float U0[3],float U1[3],float U2[3])
+int coplanar_tri_tri(const float N[3],const float V0[3],const float V1[3],const float V2[3],
+                     const float U0[3],const float U1[3],const float U2[3])
 {
    float A[3];
    short i0,i1;
@@ -197,8 +197,8 @@ int coplanar_tri_tri(float N[3],float V0[3],float V1[3],float V2[3],
 }
 
 
-int tri_tri_intersect(float V0[3],float V1[3],float V2[3],
-                      float U0[3],float U1[3],float U2[3])
+int tri_tri_intersect(const float V0[3],const float V1[3],const float V2[3],
+                      const float U0[3],const float U1[3],const float U2[3])
 {
   float E1[3],E2[3];
   float N1[3],N2[3],d1,d2;

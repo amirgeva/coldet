@@ -1,15 +1,42 @@
 #include <algorithm>
 #include <numeric>
+#include <tritri.h>
 #include "obbtree.h"
-
-extern "C" {
-	int tri_tri_intersect(const float V0[3], const float V1[3], const float V2[3],
-						  const float U0[3], const float U1[3], const float U2[3]);
-}
 
 namespace obb
 {
 	static bool g_Diagnostics = false;
+
+	namespace
+	{
+		// A triangle placed in world space, with its shape for the intersection test
+		struct PlacedTriangle
+		{
+			Vector3f a, b, c;
+			COLDET::TriangleShape shape;
+		};
+
+		// Places triangles (given by the indices of their first points) in world space
+		void place(const PointList& points, const PointIndex* first, size_t count, const Transform& T,
+				   std::vector<PlacedTriangle>& out)
+		{
+			out.resize(count);
+			for (size_t k = 0; k < count; ++k)
+			{
+				PlacedTriangle& t = out[k];
+				t.a = T.apply(points[first[3 * k]]);
+				t.b = T.apply(points[first[3 * k + 1]]);
+				t.c = T.apply(points[first[3 * k + 2]]);
+				t.shape = COLDET::TriangleShape(t.a.data(), t.b.data(), t.c.data());
+			}
+		}
+
+		bool intersect(const PlacedTriangle& x, const PlacedTriangle& y)
+		{
+			return COLDET::tri_tri_intersect(x.a.data(), x.b.data(), x.c.data(), x.shape,
+											 y.a.data(), y.b.data(), y.c.data(), y.shape);
+		}
+	}
 
 	void set_diagnostics(bool v)
 	{
@@ -121,27 +148,21 @@ namespace obb
 	{
 		IntersectionResult result;
 		result.hit = false;
-		for (size_t i = 0; i < m_Points->size(); i += 3)
-		{
-			for(size_t j = 0; j < other.m_Points->size(); j += 3)
-			{
-				const Vector3f& A0 = m_DynamicTransform.apply(m_Points->at(i + 0));
-				const Vector3f& A1 = m_DynamicTransform.apply(m_Points->at(i + 1));
-				const Vector3f& A2 = m_DynamicTransform.apply(m_Points->at(i + 2));
-				const Vector3f& B0 = other.m_DynamicTransform.apply(other.m_Points->at(j + 0));
-				const Vector3f& B1 = other.m_DynamicTransform.apply(other.m_Points->at(j + 1));
-				const Vector3f& B2 = other.m_DynamicTransform.apply(other.m_Points->at(j + 2));
-				if (tri_tri_intersect(
-					A0.data(), A1.data(), A2.data(),
-					B0.data(), B1.data(), B2.data()))
+		std::vector<PointIndex> all_a(m_Points->size()), all_b(other.m_Points->size());
+		std::iota(all_a.begin(), all_a.end(), 0);
+		std::iota(all_b.begin(), all_b.end(), 0);
+		std::vector<PlacedTriangle> a, b;
+		place(*m_Points, all_a.data(), all_a.size() / 3, m_DynamicTransform, a);
+		place(*other.m_Points, all_b.data(), all_b.size() / 3, other.m_DynamicTransform, b);
+		for (size_t i = 0; i < a.size(); ++i)
+			for (size_t j = 0; j < b.size(); ++j)
+				if (intersect(a[i], b[j]))
 				{
 					result.hit = true;
-					result.triangle_index1 = i / 3;
-					result.triangle_index2 = j / 3;
+					result.triangle_index1 = i;
+					result.triangle_index2 = j;
 					return result;
 				}
-			}
-		}
 		return result;
 	}
 
@@ -151,23 +172,19 @@ namespace obb
 											const Transform& other_transform,
 											IntersectionResult& result)
 	{
-		for(size_t i=0;i<node->pointIndices.size();i+=3)
+		// place each leaf's triangles in world space once, rather than once per pair
+		thread_local std::vector<PlacedTriangle> a, b;
+		place(*node->points, node->pointIndices.data(), node->pointIndices.size() / 3, node_transform, a);
+		place(*other_node->points, other_node->pointIndices.data(), other_node->pointIndices.size() / 3, other_transform, b);
+		for (size_t i = 0; i < a.size(); ++i)
 		{
-			for(size_t j=0;j<other_node->pointIndices.size();j+=3)
+			for (size_t j = 0; j < b.size(); ++j)
 			{
-				const Vector3f& A0 = node_transform.apply(node->points->at( node->pointIndices[i + 0] ));
-				const Vector3f& A1 = node_transform.apply(node->points->at( node->pointIndices[i + 1] ));
-				const Vector3f& A2 = node_transform.apply(node->points->at( node->pointIndices[i + 2] ));
-				const Vector3f& B0 = other_transform.apply(other_node->points->at( other_node->pointIndices[j + 0] ));
-				const Vector3f& B1 = other_transform.apply(other_node->points->at( other_node->pointIndices[j + 1] ));
-				const Vector3f& B2 = other_transform.apply(other_node->points->at( other_node->pointIndices[j + 2] ));
-				if (tri_tri_intersect(
-					A0.data(), A1.data(), A2.data(),
-					B0.data(), B1.data(), B2.data()))
+				if (intersect(a[i], b[j]))
 				{
 					result.hit = true;
-					result.triangle_index1 = node->pointIndices[i] / 3;
-					result.triangle_index2 = other_node->pointIndices[j] / 3;
+					result.triangle_index1 = node->pointIndices[3 * i] / 3;
+					result.triangle_index2 = other_node->pointIndices[3 * j] / 3;
 					if (!result.find_all)
 						return true;
 					result.pairs.emplace_back(result.triangle_index1, result.triangle_index2);

@@ -49,7 +49,7 @@ public:
                 total += s;
             }
             double average = static_cast<double>(total.duration) / total.count / 1000.0; // ns -> us
-            printf("Profiler: %s, calls: %zu, average time: %.2f us\n", name.c_str(), times.size(), average);
+            printf("Profiler: %s, calls: %zu, average time: %.4f us\n", name.c_str(), times.size(), average);
         }
     }
 };

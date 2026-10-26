@@ -81,8 +81,12 @@ OBB compute_obb(const std::vector<Vector3f>& points, const std::vector<uint32_t>
 	}
 
 	Vector3f center_local = 0.5f * (minv + maxv);
-	static const Vector3f margin = 1.0e-3 * Vector3f(1, 1, 1);
-	obb.half_size = 0.5f * (maxv - minv) + margin;
+	obb.half_size = 0.5f * (maxv - minv);
+	// Cover the rounding of the fit: a few ulps of the box's size and of its distance
+	// from the origin (an absolute margin would depend on the model's units)
+	const float margin = 8.0f * std::numeric_limits<float>::epsilon() *
+		(obb.half_size.maxCoeff() + mean.cwiseAbs().maxCoeff());
+	obb.half_size.array() += margin;
 
 	// 5) Back to world
 	Vector3f center_world = mean + R * center_local;
@@ -192,13 +196,18 @@ bool intersects(const OBB& A, const OBB& B)
 	Matrix3f AbsR = R.cwiseAbs();
 	AbsR.array() += EPS;
 
+	// t is the difference of two centers: far from the origin, its rounding error is a few
+	// ulps of their magnitude, which separates boxes without thickness that are in contact
+	const float slack = 4.0f * std::numeric_limits<float>::epsilon() *
+		(A.transform.center.cwiseAbs().maxCoeff() + B.transform.center.cwiseAbs().maxCoeff());
+
 	float ra, rb;
 
 	// Test axes L = A0, A1, A2
 	for (int i = 0; i < 3; ++i) {
 		ra = a[i];
 		rb = b[0] * AbsR(i, 0) + b[1] * AbsR(i, 1) + b[2] * AbsR(i, 2);
-		if (std::abs(t[i]) > ra + rb) return false;
+		if (std::abs(t[i]) > ra + rb + slack) return false;
 	}
 
 	// Test axes L = B0, B1, B2
@@ -206,7 +215,7 @@ bool intersects(const OBB& A, const OBB& B)
 		ra = a[0] * AbsR(0, j) + a[1] * AbsR(1, j) + a[2] * AbsR(2, j);
 		rb = b[j];
 		const float tj = std::abs(t[0] * R(0, j) + t[1] * R(1, j) + t[2] * R(2, j));
-		if (tj > ra + rb) return false;
+		if (tj > ra + rb + slack) return false;
 	}
 
 	// Test axis L = Ai x Bj (9 tests)
@@ -224,7 +233,7 @@ bool intersects(const OBB& A, const OBB& B)
 			ra = a[i1] * AbsR(i2, j) + a[i2] * AbsR(i1, j);
 			rb = b[j1] * AbsR(i, j2) + b[j2] * AbsR(i, j1);
 
-			if (tproj > ra + rb) return false;
+			if (tproj > ra + rb + 2.0f * slack) return false;
 		}
 	}
 

@@ -187,8 +187,8 @@ EXPORT bool SphereRayCollision(const float* center, float radius,
                                float* point);
 
 /** Checks for intersection between 2 spheres. */
-EXPORT bool SphereSphereCollision(float c1[3], float r1,
-                           float c2[3], float r2, float point[3]);
+EXPORT bool SphereSphereCollision(const float c1[3], float r1,
+                           const float c2[3], float r2, float point[3]);
 
 
 

@@ -52,6 +52,9 @@ if(BUILD_TESTING)
       GTest::gtest_main
   )
 
+  include(GoogleTest)
+  gtest_discover_tests(coldet_unit_tests DISCOVERY_MODE PRE_TEST)
+
   # If you want USE_TBB visible to the test target even if it doesn't link coldet publicly:
   if(TBB_FOUND)
     target_compile_definitions(coldet_unit_tests PRIVATE USE_TBB=1)

@@ -26,6 +26,7 @@
 #include <vector>
 #include "cdmath3d.h"
 #include "sysdep.h"
+#include "tritri.h"
 
 __CD__BEGIN
 
@@ -113,6 +114,8 @@ public:
 
   Vector3D v1,v2,v3;
   Vector3D center;
+  /** For the triangle intersection test, computed once from the vertices */
+  TriangleShape shape;
 };
 
 class BoxedTriangle;

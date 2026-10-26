@@ -4,5 +4,5 @@ add_library(obb STATIC
 	obbtree.cpp
 	obbtree.h
 )
-target_link_libraries(obb PUBLIC Eigen3::Eigen)
+target_link_libraries(obb PUBLIC coldet Eigen3::Eigen)
 target_include_directories(obb PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

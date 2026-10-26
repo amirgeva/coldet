@@ -255,7 +255,7 @@ public:
     ind.start=ind.stop=0;
   }
 
-  bool add_interval(int id, float from, float to)
+  bool add_interval(ushort id, float from, float to)
   {
     if (id<0 || id>=m_N) return false;
     Index& ind=m_Indices[id];

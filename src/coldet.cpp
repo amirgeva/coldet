@@ -44,6 +44,23 @@ bool CollisionModel3DImpl::collision(CollisionModel3D* other,
                                      int MaxProcessingTime,
                                      float* other_transform)
 {
+  return collide(other,AccuracyDepth,MaxProcessingTime,other_transform,NULL);
+}
+
+bool CollisionModel3DImpl::collisionAll(CollisionModel3D* other,
+                                        std::vector<std::pair<int,int>>& pairs,
+                                        float* other_transform)
+{
+  pairs.clear();
+  return collide(other,-1,0,other_transform,&pairs);
+}
+
+bool CollisionModel3DImpl::collide(CollisionModel3D* other, 
+                                   int AccuracyDepth, 
+                                   int MaxProcessingTime,
+                                   float* other_transform,
+                                   std::vector<std::pair<int,int>>* all_pairs)
+{
   m_ColType=Models;
   CollisionModel3DImpl* o=static_cast<CollisionModel3DImpl*>(other);
   if (!m_Final) throw Inconsistency();
@@ -104,7 +121,8 @@ bool CollisionModel3DImpl::collision(CollisionModel3D* other,
                 m_iColTri1=getTriangleIndex(bt1);
                 m_ColTri2=tt;
                 m_iColTri2=o->getTriangleIndex(bt2);
-                return true;
+                if (!all_pairs) return true;
+                all_pairs->push_back(std::make_pair(m_iColTri1,m_iColTri2));
               }
             }
           }
@@ -179,7 +197,7 @@ bool CollisionModel3DImpl::collision(CollisionModel3D* other,
       }
     }
   }
-  return false;
+  return all_pairs!=NULL && !all_pairs->empty();
 }
 
 bool CollisionModel3DImpl::rayCollision(const float origin[3], 

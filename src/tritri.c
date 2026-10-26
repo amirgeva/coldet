@@ -16,8 +16,12 @@
 
 
 /* if USE_EPSILON_TEST is true then we do a check: 
-         if |dv|<EPSILON then dv=0.0;
+         if |dv|<eps then dv=0.0;
    else no check is done (which is less robust)
+   The signed distances are scaled by |N| (twice the area of the triangle
+   defining the plane), so eps is scaled to match: a vertex is treated as
+   lying on the plane when it is within EPSILON times the triangle's longest
+   edge of it.  This keeps the test independent of the model's scale.
 */
 #define USE_EPSILON_TEST TRUE  
 #define EPSILON 0.000001
@@ -197,11 +201,26 @@ int coplanar_tri_tri(const float N[3],const float V0[3],const float V1[3],const 
 }
 
 
+/* squared tolerance for the signed distances to the plane with normal N=E1xE2 */
+static float plane_epsilon_sq(const float N[3],const float E1[3],const float E2[3])
+{
+  float E3[3];
+  float l1,l2,l3,lmax;
+  SUB(E3,E2,E1);
+  l1=DOT(E1,E1);
+  l2=DOT(E2,E2);
+  l3=DOT(E3,E3);
+  lmax=l1;
+  if(l2>lmax) lmax=l2;
+  if(l3>lmax) lmax=l3;
+  return (float)(EPSILON*EPSILON)*DOT(N,N)*lmax;
+}
+
 int tri_tri_intersect(const float V0[3],const float V1[3],const float V2[3],
                       const float U0[3],const float U1[3],const float U2[3])
 {
-  float E1[3],E2[3];
-  float N1[3],N2[3],d1,d2;
+  float E1[3],E2[3],T[3];
+  float N1[3],N2[3],eps; /* squared tolerance */
   float du0,du1,du2,dv0,dv1,dv2;
   float D[3];
   float isect1[2], isect2[2];
@@ -215,19 +234,20 @@ int tri_tri_intersect(const float V0[3],const float V1[3],const float V2[3],
   SUB(E1,V1,V0);
   SUB(E2,V2,V0);
   CROSS(N1,E1,E2);
-  d1=-DOT(N1,V0);
-  /* plane equation 1: N1.X+d1=0 */
+  /* plane equation 1: N1.(X-V0)=0 */
 
-  /* put U0,U1,U2 into plane equation 1 to compute signed distances to the plane*/
-  du0=DOT(N1,U0)+d1;
-  du1=DOT(N1,U1)+d1;
-  du2=DOT(N1,U2)+d1;
+  /* put U0,U1,U2 into plane equation 1 to compute signed distances to the plane.
+     Measuring relative to V0 avoids cancellation when coordinates are large */
+  SUB(T,U0,V0); du0=DOT(N1,T);
+  SUB(T,U1,V0); du1=DOT(N1,T);
+  SUB(T,U2,V0); du2=DOT(N1,T);
 
   /* coplanarity robustness check */
 #if USE_EPSILON_TEST==TRUE
-  if(fabs(du0)<EPSILON) du0=0.0;
-  if(fabs(du1)<EPSILON) du1=0.0;
-  if(fabs(du2)<EPSILON) du2=0.0;
+  eps=plane_epsilon_sq(N1,E1,E2);
+  if(du0*du0<eps) du0=0.0;
+  if(du1*du1<eps) du1=0.0;
+  if(du2*du2<eps) du2=0.0;
 #endif
   du0du1=du0*du1;
   du0du2=du0*du2;
@@ -239,18 +259,18 @@ int tri_tri_intersect(const float V0[3],const float V1[3],const float V2[3],
   SUB(E1,U1,U0);
   SUB(E2,U2,U0);
   CROSS(N2,E1,E2);
-  d2=-DOT(N2,U0);
-  /* plane equation 2: N2.X+d2=0 */
+  /* plane equation 2: N2.(X-U0)=0 */
 
   /* put V0,V1,V2 into plane equation 2 */
-  dv0=DOT(N2,V0)+d2;
-  dv1=DOT(N2,V1)+d2;
-  dv2=DOT(N2,V2)+d2;
+  SUB(T,V0,U0); dv0=DOT(N2,T);
+  SUB(T,V1,U0); dv1=DOT(N2,T);
+  SUB(T,V2,U0); dv2=DOT(N2,T);
 
 #if USE_EPSILON_TEST==TRUE
-  if(fabs(dv0)<EPSILON) dv0=0.0;
-  if(fabs(dv1)<EPSILON) dv1=0.0;
-  if(fabs(dv2)<EPSILON) dv2=0.0;
+  eps=plane_epsilon_sq(N2,E1,E2);
+  if(dv0*dv0<eps) dv0=0.0;
+  if(dv1*dv1<eps) dv1=0.0;
+  if(dv2*dv2<eps) dv2=0.0;
 #endif
 
   dv0dv1=dv0*dv1;

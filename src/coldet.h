@@ -29,6 +29,9 @@
 */
 #pragma once
 
+#include <utility>
+#include <vector>
+
 #ifndef EXPORT
 #define EXPORT
 #endif
@@ -88,6 +91,14 @@ public:
                          int AccuracyDepth=-1,
                          int MaxProcessingTime=0,
                          float* other_transform=0) = 0;
+
+  /** Find all pairs of colliding triangles with another model.
+      Each pair is (this model's triangle index, other model's triangle index).
+      Returns true if any pair was found.
+  */
+  virtual bool collisionAll(CollisionModel3D* other,
+                            std::vector<std::pair<int,int>>& pairs,
+                            float* other_transform=0) = 0;
 
   /** Returns true if the ray given in world space coordinates
       intersects with the object.  

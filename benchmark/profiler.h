@@ -2,7 +2,7 @@
 
 #include <chrono>
 #include <string>
-#include <unordered_map>
+#include <map>
 #include <vector>
 
 class ProfilerStatistics
@@ -17,7 +17,7 @@ class ProfilerStatistics
             return *this;
         }
     };
-    std::unordered_map<std::string, std::vector<Sample>> m_Statistics;
+    std::map<std::string, std::vector<Sample>> m_Statistics;
 public:
     static ProfilerStatistics& instance()
     {
@@ -37,6 +37,8 @@ public:
         else it->second.push_back(Sample{count,duration});
     }
 
+    void clear() { m_Statistics.clear(); }
+
     void print_statistics() const
     {
         for (const auto& [name, times] : m_Statistics)
@@ -46,7 +48,7 @@ public:
             {
                 total += s;
             }
-            double average = static_cast<double>(total.duration) / total.count;
+            double average = static_cast<double>(total.duration) / total.count / 1000.0; // ns -> us
             printf("Profiler: %s, calls: %zu, average time: %.2f us\n", name.c_str(), times.size(), average);
         }
     }
@@ -64,7 +66,7 @@ public:
     ~Profiler()
     {
         auto end_time =  std::chrono::high_resolution_clock::now();
-        uint64_t duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time_).count();
+        uint64_t duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time_).count();
         ProfilerStatistics::instance().add(name_, duration, count_);
     }
 private:

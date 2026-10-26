@@ -21,12 +21,12 @@
  *
  * Or visit the home page: http://sourceforge.net/projects/coldet/
  */
-#ifndef H_COLDET_IMPL
-#define H_COLDET_IMPL
+#pragma once
 
 #include "coldet.h"
 #include "box.h"
 #include "cdmath3d.h"
+#include "utils.h"
 #include <vector>
 
 __CD__BEGIN
@@ -64,6 +64,17 @@ public:
                  int AccuracyDepth, 
                  int MaxProcessingTime,
                  float* other_transform);
+
+  bool collisionAll(CollisionModel3D* other,
+                    std::vector<std::pair<int,int>>& pairs,
+                    float* other_transform);
+
+  /** Shared traversal.  Stops at the first hit unless all_pairs is given. */
+  bool collide(CollisionModel3D* other,
+               int AccuracyDepth,
+               int MaxProcessingTime,
+               float* other_transform,
+               std::vector<std::pair<int,int>>* all_pairs);
 
   bool rayCollision(const float origin[3], const float direction[3], bool closest,
                     float segmin, float segmax);
@@ -107,4 +118,3 @@ public:
 
 __CD__END
 
-#endif // H_COLDET_IMPL

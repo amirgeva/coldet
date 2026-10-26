@@ -21,8 +21,7 @@
  *
  * Or visit the home page: http://sourceforge.net/projects/coldet/
  */
-#ifndef H_MYTRITRI
-#define H_MYTRITRI
+#pragma once
 
 #include "box.h"
 
@@ -95,4 +94,3 @@ public:
 
 __CD__END
 
-#endif // H_MYTRITRI

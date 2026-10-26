@@ -147,14 +147,17 @@ bool Box::intersect(const Box& b, RotationState& rs)
   float   R0,R1,R,R01;
   int i;
 
+  // A small epsilon on the absolute rotation terms absorbs its rounding error, so boxes
+  // with parallel axes and no thickness (flat triangles in contact) are not separated
+  const float EPS=1e-6f;
   for(i=0;i<3;i++)
   {
     C(i,0)=rs.N[0][i];
     C(i,1)=rs.N[1][i];
     C(i,2)=rs.N[2][i];
-    abs_C(i,0)=flabs(C(i,0));
-    abs_C(i,1)=flabs(C(i,1));
-    abs_C(i,2)=flabs(C(i,2));
+    abs_C(i,0)=flabs(C(i,0))+EPS;
+    abs_C(i,1)=flabs(C(i,1))+EPS;
+    abs_C(i,2)=flabs(C(i,2))+EPS;
     R=flabs(distance[i]);
     R1=EB*abs_C.baseRow(i);
     R01=EA[i]+R1;
@@ -225,13 +228,9 @@ bool Box::intersect(const Box& b, RotationState& rs)
   return true;
 }
 
-extern "C" { 
-int tri_tri_intersect(float V0[3],float V1[3],float V2[3],
-                      float U0[3],float U1[3],float U2[3]);
-};
-
 Triangle::Triangle(const Vector3D& _1, const Vector3D& _2, const Vector3D& _3)
-: v1(_1), v2(_2), v3(_3), center((1.0f/3.0f)*(_1+_2+_3)) 
+: v1(_1), v2(_2), v3(_3), center((1.0f/3.0f)*(_1+_2+_3)),
+  shape(v1.get(),v2.get(),v3.get())
 {}
 
 bool Triangle::intersect(const Vector3D& O, const Vector3D& D, Vector3D& cp, 
@@ -284,12 +283,8 @@ bool Triangle::intersect(const Vector3D& O, float radius, Vector3D& cp)
 
 bool Triangle::intersect(const Triangle& t) const
 {
-  return (tri_tri_intersect((float*)&v1.x,
-                            (float*)&v2.x,
-                            (float*)&v3.x,
-                            (float*)&t.v1.x,
-                            (float*)&t.v2.x,
-                            (float*)&t.v3.x) != 0);
+  return tri_tri_intersect(v1.get(),v2.get(),v3.get(),shape,
+                           t.v1.get(),t.v2.get(),t.v3.get(),t.shape);
 }
 
 __CD__END

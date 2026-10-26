@@ -27,8 +27,10 @@
     Interface for the library.  
     Isolated from any implementation details.
 */
-#ifndef H_COLDET
-#define H_COLDET
+#pragma once
+
+#include <utility>
+#include <vector>
 
 #ifndef EXPORT
 #define EXPORT
@@ -89,6 +91,14 @@ public:
                          int AccuracyDepth=-1,
                          int MaxProcessingTime=0,
                          float* other_transform=0) = 0;
+
+  /** Find all pairs of colliding triangles with another model.
+      Each pair is (this model's triangle index, other model's triangle index).
+      Returns true if any pair was found.
+  */
+  virtual bool collisionAll(CollisionModel3D* other,
+                            std::vector<std::pair<int,int>>& pairs,
+                            float* other_transform=0) = 0;
 
   /** Returns true if the ray given in world space coordinates
       intersects with the object.  
@@ -177,9 +187,8 @@ EXPORT bool SphereRayCollision(const float* center, float radius,
                                float* point);
 
 /** Checks for intersection between 2 spheres. */
-EXPORT bool SphereSphereCollision(float c1[3], float r1,
-                           float c2[3], float r2, float point[3]);
+EXPORT bool SphereSphereCollision(const float c1[3], float r1,
+                           const float c2[3], float r2, float point[3]);
 
 
 
-#endif // H_COLDET

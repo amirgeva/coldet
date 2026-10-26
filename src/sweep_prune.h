@@ -21,8 +21,7 @@
  *
  * Or visit the home page: http://sourceforge.net/projects/coldet/
  */
-#ifndef H_COLDET_SWEEP_PRUNE
-#define H_COLDET_SWEEP_PRUNE
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -256,7 +255,7 @@ public:
     ind.start=ind.stop=0;
   }
 
-  bool add_interval(int id, float from, float to)
+  bool add_interval(ushort id, float from, float to)
   {
     if (id<0 || id>=m_N) return false;
     Index& ind=m_Indices[id];
@@ -369,17 +368,21 @@ public:
 
   void add_box(int id, const float* pos, float radius)
   {
-    kbits pre_row(m_N),post_row(m_N);
-    get_collisions(id,pre_row);
+    // A new box has no intersections yet.  (Its matrix rows may still hold bits from
+    // before it was removed, so they can't be read as its previous state.)
+    kbits row(m_N);
     for(int i=0;i<3;++i)
       m_Axes[i].add_interval(id,pos[i]-radius,pos[i]+radius);
-    get_collisions(id,post_row);
-    pre_row^=post_row;
-    toggle_intersections(id,pre_row);
+    get_collisions(id,row);
+    toggle_intersections(id,row);
   }
 
   void remove_box(int id)
   {
+    // drop the box's current intersections, before its intervals go
+    kbits row(m_N);
+    get_collisions(id,row);
+    toggle_intersections(id,row);
     for(int i=0;i<3;++i)
       m_Axes[i].remove_interval(id);
   }
@@ -400,4 +403,3 @@ public:
 
 __CD__END
 
-#endif // H_COLDET_SWEEP_PRUNE

@@ -27,8 +27,7 @@
     Interface for the library.  
     Isolated from any implementation details.
 */
-#ifndef H_COLDET_MULTI_OBJECT
-#define H_COLDET_MULTI_OBJECT
+#pragma once
 
 #include "coldet.h"
 #include "sysdep.h"
@@ -99,5 +98,4 @@ MultiObjectSystem* newSweepPruneSystem(int max_objects);
 
 __CD__END
 
-#endif // H_COLDET_MULTI_OBJECT
 

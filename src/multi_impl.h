@@ -21,8 +21,7 @@
  *
  * Or visit the home page: http://sourceforge.net/projects/coldet/
  */
-#ifndef H_COLDET_MULTI_OBJECT_IMPL
-#define H_COLDET_MULTI_OBJECT_IMPL
+#pragma once
 
 #include "multiobject.h"
 #include "cdmath3d.h"
@@ -53,6 +52,21 @@ protected:
   int_list    m_FreeSlots;
   details_vec m_Results;
 
+  /** Places a model's collision model: from its updater, or at its position */
+  static void place(Model& m)
+  {
+    if (m.updater)
+      m.col_model->setTransform(m.updater->update());
+    else
+    {
+      Matrix3D t=Matrix3D::Identity;
+      t.m[3][0]=m.position.x;
+      t.m[3][1]=m.position.y;
+      t.m[3][2]=m.position.z;
+      m.col_model->setTransform(t.m[0]);
+    }
+  }
+
   bool exact_check(int id1, int id2)
   {
     bool rc=false;
@@ -61,10 +75,8 @@ protected:
     CollisionDetails& cd=m_Results.back();
     if (m1.col_model && m2.col_model)
     {
-      if (m1.updater)
-        m1.col_model->setTransform(m1.updater->update());
-      if (m2.updater)
-        m2.col_model->setTransform(m2.updater->update());
+      place(m1);
+      place(m2);
       if (m1.col_model->collision(m2.col_model))
       {
         m1.col_model->getCollidingTriangles(cd.t1,cd.t2,false);
@@ -81,20 +93,21 @@ protected:
       { 
         cm=m2.col_model; 
         m=&m1; 
-        if (m2.updater)
-          cm->setTransform(m2.updater->update());
+        place(m2);
       }
       else
-      {
-        if (m1.updater)
-          cm->setTransform(m1.updater->update());
-      }
+        place(m1);
       if (cm->sphereCollision(m->position.get(),m->radius))
       {
         cm->getCollidingTriangles(cd.t1,cd.t2,false);
         cm->getCollisionPoint(cd.point,false);
         rc=true;
       }
+    }
+    else
+    {
+      // two sphere objects
+      rc=SphereSphereCollision(m1.position.get(),m1.radius,m2.position.get(),m2.radius,cd.point);
     }
     return rc;
   }
@@ -302,5 +315,4 @@ public:
 
 __CD__END
 
-#endif // H_COLDET_MULTI_OBJECT_IMPL
 

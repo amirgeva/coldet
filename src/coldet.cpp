@@ -39,19 +39,63 @@ public:
   int depth;
 };
 
+/** Transform from the other model's space into this model's space: other * inverse(self).
+    Computed in double precision, treating both as rigid transforms (no scaling, see
+    coldet.h): far from the origin, the float product loses most of the precision of the
+    relative translation, which is the difference of two large translations. */
+static Matrix3D relative_transform(const Matrix3D& other, const Matrix3D& self)
+{
+  // Row vectors: p' = p*M, rotation in rows 0..2, translation in row 3.
+  // inverse(self) = [ S^T ; -ts*S^T ], so other*inverse(self) = [ O*S^T ; (to-ts)*S^T ]
+  Matrix3D res=Matrix3D::Identity;
+  double d[3];
+  int i,j,k;
+  for(k=0;k<3;k++) d[k]=double(other.m[3][k])-double(self.m[3][k]);
+  for(j=0;j<3;j++)
+  {
+    for(i=0;i<3;i++)
+    {
+      double sum=0.0;
+      for(k=0;k<3;k++) sum+=double(other.m[i][k])*double(self.m[j][k]);
+      res.m[i][j]=float(sum);
+    }
+    double sum=0.0;
+    for(k=0;k<3;k++) sum+=d[k]*double(self.m[j][k]);
+    res.m[3][j]=float(sum);
+  }
+  return res;
+}
+
 bool CollisionModel3DImpl::collision(CollisionModel3D* other, 
                                      int AccuracyDepth, 
                                      int MaxProcessingTime,
                                      float* other_transform)
 {
+  return collide(other,AccuracyDepth,MaxProcessingTime,other_transform,NULL);
+}
+
+bool CollisionModel3DImpl::collisionAll(CollisionModel3D* other,
+                                        std::vector<std::pair<int,int>>& pairs,
+                                        float* other_transform)
+{
+  pairs.clear();
+  return collide(other,-1,0,other_transform,&pairs);
+}
+
+bool CollisionModel3DImpl::collide(CollisionModel3D* other, 
+                                   int AccuracyDepth, 
+                                   int MaxProcessingTime,
+                                   float* other_transform,
+                                   std::vector<std::pair<int,int>>* all_pairs)
+{
   m_ColType=Models;
   CollisionModel3DImpl* o=static_cast<CollisionModel3DImpl*>(other);
   if (!m_Final) throw Inconsistency();
   if (!o->m_Final) throw Inconsistency();
-  Matrix3D t=( other_transform==NULL ? o->m_Transform : *((Matrix3D*)other_transform) );
-  if (m_Static) t *= m_InvTransform;
-  else          t *= m_Transform.Inverse();
-  RotationState rs(t);
+  // an empty tree's root has neither triangles nor sons, which the traversal can't handle
+  if (m_Triangles.empty() || o->m_Triangles.empty()) return false;
+  const Matrix3D& ot=( other_transform==NULL ? o->m_Transform : *((Matrix3D*)other_transform) );
+  RotationState rs(relative_transform(ot,m_Transform));
 
   if (AccuracyDepth<0) AccuracyDepth=0xFFFFFF;
   if (MaxProcessingTime==0) MaxProcessingTime=0xFFFFFF;
@@ -104,7 +148,8 @@ bool CollisionModel3DImpl::collision(CollisionModel3D* other,
                 m_iColTri1=getTriangleIndex(bt1);
                 m_ColTri2=tt;
                 m_iColTri2=o->getTriangleIndex(bt2);
-                return true;
+                if (!all_pairs) return true;
+                all_pairs->push_back(std::make_pair(m_iColTri1,m_iColTri2));
               }
             }
           }
@@ -179,7 +224,7 @@ bool CollisionModel3DImpl::collision(CollisionModel3D* other,
       }
     }
   }
-  return false;
+  return all_pairs!=NULL && !all_pairs->empty();
 }
 
 bool CollisionModel3DImpl::rayCollision(const float origin[3], 
@@ -191,6 +236,7 @@ bool CollisionModel3DImpl::rayCollision(const float origin[3],
   float mintparm=9e9f,tparm;
   Vector3D col_point;
   m_ColType=Ray;
+  if (m_Triangles.empty()) return false;
   Vector3D O;
   Vector3D D;
   if (m_Static)
@@ -264,6 +310,7 @@ bool CollisionModel3DImpl::rayCollision(const float origin[3],
 bool CollisionModel3DImpl::sphereCollision(const float origin[3], float radius)
 {
   m_ColType=Sphere;
+  if (m_Triangles.empty()) return false;
   Vector3D O;
   if (m_Static)
     O=Transform(*(Vector3D*)origin,m_InvTransform);
@@ -376,26 +423,30 @@ bool SphereRayCollision(const float* center, float radius,
   float disc=radius*radius - (EO*EO - v*v);
   if (disc<0.0f) return false;
   float d=sqrt(disc);
-  P=O+(v-d)*D;
+  // the ray meets the sphere at v-d and v+d: take the first one ahead of the origin
+  if (v+d<0.0f) return false;  // the sphere is behind the ray
+  float t=(v-d>=0.0f ? v-d : v+d);
+  P=O+t*D;
   return true;
 }
 
-bool SphereSphereCollision(float c1[3], float r1,
-                           float c2[3], float r2,
+bool SphereSphereCollision(const float c1[3], float r1,
+                           const float c2[3], float r2,
                            float point[3])
 {
-  Vector3D& C1=*((Vector3D*)c1);
-  Vector3D& C2=*((Vector3D*)c2);
+  const Vector3D& C1=*((const Vector3D*)c1);
+  const Vector3D& C2=*((const Vector3D*)c2);
   float dist=(C2-C1).SquareMagnitude();
   float sum=r1+r2;
   if (dist < sum*sum)
   {
     Vector3D& P =*((Vector3D*)point);
 
-    P = C1 - C2;
-    P.Normalized();
-    P*=r1;
-    P += C1;
+    // the point on the first sphere, toward the second (its center if they are concentric)
+    Vector3D dir = C2 - C1;
+    if (dist > 0.0f) dir = dir.Normalized();
+    P = C1 + r1*dir;
+    if (dist == 0.0f) P = C1;
     return true;
   }
   return false;

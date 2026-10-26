@@ -52,19 +52,21 @@ protected:
   int_list    m_FreeSlots;
   details_vec m_Results;
 
-  /** Places a model's collision model: from its updater, or at its position */
-  static void place(Model& m)
+  /** Where a model is: from its updater, or at its position */
+  static Matrix3D placement(const Model& m)
   {
     if (m.updater)
-      m.col_model->setTransform(m.updater->update());
-    else
-    {
-      Matrix3D t=Matrix3D::Identity;
-      t.m[3][0]=m.position.x;
-      t.m[3][1]=m.position.y;
-      t.m[3][2]=m.position.z;
-      m.col_model->setTransform(t.m[0]);
-    }
+      return *reinterpret_cast<const Matrix3D*>(m.updater->update());
+    Matrix3D t=Matrix3D::Identity;
+    t.m[3][0]=m.position.x;
+    t.m[3][1]=m.position.y;
+    t.m[3][2]=m.position.z;
+    return t;
+  }
+
+  static void place(Model& m)
+  {
+    m.col_model->setTransform(placement(m).m[0]);
   }
 
   bool exact_check(int id1, int id2)
@@ -75,9 +77,11 @@ protected:
     CollisionDetails& cd=m_Results.back();
     if (m1.col_model && m2.col_model)
     {
+      // The second placement is passed to the test rather than set on the model: objects
+      // may share a collision model, which can only hold one transform
       place(m1);
-      place(m2);
-      if (m1.col_model->collision(m2.col_model))
+      Matrix3D t2=placement(m2);
+      if (m1.col_model->collision(m2.col_model,-1,0,t2.m[0]))
       {
         m1.col_model->getCollidingTriangles(cd.t1,cd.t2,false);
         m1.col_model->getCollisionPoint(cd.point,false);
@@ -127,6 +131,17 @@ protected:
     }
     return id;
   }
+
+  /** Adds a model to the system's structure, or releases its slot if there is no room.
+      Returns the id, or -1 */
+  int insert(int id, const float* position, float radius)
+  {
+    if (add_object(id,position,radius)) return id;
+    m_Models[id]=Model();
+    if (id==int(m_Models.size())-1) m_Models.pop_back();
+    else m_FreeSlots.push_front(id);
+    return -1;
+  }
 public:
   MultiObjectImpl()
   {}
@@ -145,8 +160,7 @@ public:
     m.position.x=mat[12];
     m.position.y=mat[13];
     m.position.z=mat[14];
-    add_object(id,&mat[12],m.radius);
-    return id;
+    return insert(id,&mat[12],m.radius);
   }
 
   virtual int add_object(CollisionModel3D* model, const float* position)
@@ -162,8 +176,7 @@ public:
     m.position.x=position[0];
     m.position.y=position[1];
     m.position.z=position[2];
-    add_object(id,position,m.radius);
-    return id;
+    return insert(id,position,m.radius);
   }
 
   virtual int add_sphere_object(float radius, const float* position)
@@ -177,11 +190,11 @@ public:
     m.position.x=position[0];
     m.position.y=position[1];
     m.position.z=position[2];
-    add_object(id,position,radius);
-    return id;
+    return insert(id,position,radius);
   }
 
-  virtual void add_object(int id, const float* position, float radius) = 0;
+  /** Returns false if the system has no room for the object */
+  virtual bool add_object(int id, const float* position, float radius) = 0;
   virtual void remove_object_from_system(int id) = 0;
 
   virtual void remove_object(int id)
@@ -232,6 +245,23 @@ public:
 
   virtual void update_position(int id, Model& m, const Vector3D& pos, const Vector3D& delta)
   {}
+
+  /** Objects placed by an updater move with it: take up their current positions */
+  void follow_updaters()
+  {
+    for(int id=0;id<int(m_Models.size());++id)
+    {
+      Model& m=m_Models[id];
+      if (!m.valid || !m.updater) continue;
+      const float* mat=m.updater->update();
+      Vector3D pos(mat[12],mat[13],mat[14]);
+      if (pos.x!=m.position.x || pos.y!=m.position.y || pos.z!=m.position.z)
+      {
+        update_position(id,m,pos,pos-m.position);
+        m.position=pos;
+      }
+    }
+  }
 };
 
 class SweepPruneSystem : public MultiObjectImpl
@@ -245,9 +275,9 @@ public:
     m_SP.remove_box(id);
   }
 
-  virtual void add_object(int id, const float* position, float radius)
+  virtual bool add_object(int id, const float* position, float radius)
   {
-    m_SP.add_box(id,position,radius);
+    return m_SP.add_box(id,position,radius);
   }
 
   virtual void update_position(int id, Model& m, const Vector3D& pos, const Vector3D& delta)
@@ -257,6 +287,7 @@ public:
 
   virtual int check_collisions(bool exact)
   {
+    follow_updaters();
     m_Results.clear();
     const SNP::intr_set& s=m_SP.get_intersections();
     for(SNP::intr_set::const_iterator it=s.begin();it!=s.end();++it)
@@ -278,10 +309,11 @@ public:
 class SphereSystem : public MultiObjectImpl
 {
 public:
-  virtual void add_object(int id, const float* position, float radius) {}
+  virtual bool add_object(int id, const float* position, float radius) { return true; }
   virtual void remove_object_from_system(int id) {}
   virtual int check_collisions(bool exact)
   {
+    follow_updaters();
     m_Results.clear();
     int n=m_Models.size();
     for(int id1=0;id1<n;++id1)

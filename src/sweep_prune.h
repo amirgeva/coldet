@@ -74,6 +74,14 @@ struct EndPoint
   bool       start;
 };
 
+/** Order of the endpoints on an axis.  Intervals are closed (touching intervals overlap,
+    which suits a broad phase), so at equal positions starts come before stops.  This also
+    keeps a zero length interval's start before its stop. */
+inline bool precedes(const EndPoint& a, const EndPoint& b)
+{
+  return a.pos<b.pos || (a.pos==b.pos && a.start && !b.start);
+}
+
 inline bool operator== (const EndPoint& p1, const EndPoint& p2)
 {
   return p1.pos==p2.pos && p1.id==p2.id && p1.start==p2.start;
@@ -107,6 +115,14 @@ inline bool operator!= (const Index& i1, const Index& i2)
 typedef std::vector<EndPoint> ep_vec;
 typedef std::vector<Index> indices;
 
+/** Told about each change of overlap between two intervals on an axis, as it happens */
+class OverlapListener
+{
+public:
+  virtual ~OverlapListener() {}
+  virtual void overlap_changed(int id1, int id2, bool overlap) = 0;
+};
+
 class SweepPruneAxe
 {
   typedef  BitMatrixRow kbits;
@@ -128,7 +144,16 @@ class SweepPruneAxe
     m_Matrix.reset(i,j);
   }
 
-  void move_end_point_forward(int which, float d)
+  /** Sets the overlap of intervals a and b, telling the listener if it changed */
+  void change(int a, int b, bool overlap, OverlapListener* listener)
+  {
+    if (m_Matrix[a].test(b)==overlap) return;
+    if (overlap) set_cell(a,b);
+    else         reset_cell(a,b);
+    if (listener) listener->overlap_changed(a,b,overlap);
+  }
+
+  void move_end_point_forward(int which, float d, OverlapListener* listener)
   {
     int n=m_EndPoints.size();
     EndPoint& ep=m_EndPoints[which];
@@ -136,7 +161,7 @@ class SweepPruneAxe
     int to_index=n-1;
     for(int i=which+1;i<n;++i)
     {
-      if (m_EndPoints[i].pos>ep.pos)
+      if (precedes(ep,m_EndPoints[i]))
       {
         if (i==(which+1)) return; // point does not move. no update needed
         to_index=i-1;
@@ -152,25 +177,25 @@ class SweepPruneAxe
       if (copy.start)
       {
         if (!cur.start) 
-          reset_cell(copy.id,cur.id);
+          change(copy.id,cur.id,false,listener);
       }
       else
       {
-        set_cell(copy.id,cur.id);
+        change(copy.id,cur.id,true,listener);
       }
     }
     m_EndPoints[to_index]=copy;
     m_Indices[copy.id].update(to_index,copy.start);
   }
 
-  void move_end_point_backward(int which, float d)
+  void move_end_point_backward(int which, float d, OverlapListener* listener)
   {
     EndPoint& ep=m_EndPoints[which];
     ep.pos+=d;
     int to_index=0;
     for(int i=which-1;i>=0;--i)
     {
-      if (m_EndPoints[i].pos<=ep.pos)
+      if (!precedes(ep,m_EndPoints[i]))
       {
         if (i==(which-1)) return; // point does not move. no update needed
         to_index=i+1;
@@ -186,11 +211,11 @@ class SweepPruneAxe
       if (!copy.start)
       {
         if (cur.start) 
-          reset_cell(copy.id,cur.id);
+          change(copy.id,cur.id,false,listener);
       }
       else
       {
-        set_cell(copy.id,cur.id);
+        change(copy.id,cur.id,true,listener);
       }
     }
     m_EndPoints[to_index]=copy;
@@ -215,20 +240,21 @@ public:
   const matrix&  get_matrix()     const       { return m_Matrix;     }
   const kbits&   get_matrix_row(int id) const { return m_Matrix[id]; }
 
-  bool move_interval(int id, float d)
+  /** Moves an interval by d, telling the listener (if given) of each change of overlap */
+  bool move_interval(int id, float d, OverlapListener* listener=0)
   {
     if (id<0 || id>=m_N) return false;
     Index& ind=m_Indices[id];
     if (ind.start==ind.stop) return false;
     if (d>0)
     {
-      move_end_point_forward(ind.stop,d);
-      move_end_point_forward(ind.start,d);
+      move_end_point_forward(ind.stop,d,listener);
+      move_end_point_forward(ind.start,d,listener);
     }
     else
     {
-      move_end_point_backward(ind.start,d);
-      move_end_point_backward(ind.stop,d);
+      move_end_point_backward(ind.start,d,listener);
+      move_end_point_backward(ind.stop,d,listener);
     }
     return true;
   }
@@ -270,7 +296,7 @@ public:
     {
       EndPoint& cur=m_EndPoints[i];
       kbits& sec_row=m_Matrix[cur.id];
-      if (phase<2 && cur.pos>cur_ins->pos)
+      if (phase<2 && precedes(*cur_ins,cur))
       {
         m_EndPoints.insert(m_EndPoints.begin()+i,*cur_ins);
         if (phase==0) ind.start=i;
@@ -318,11 +344,20 @@ public:
   }
 };
 
-class SweepPrune
+class SweepPrune : private OverlapListener
 {
   typedef SweepPruneAxe::kbits kbits;
   SweepPruneAxe    m_Axes[3];
   intr_set         m_Intersections;
+  int              m_MovingAxis;  // the axis move_box is moving on
+
+  void overlap_changed(int id1, int id2, bool overlap)
+  {
+    for(int i=0;i<3;++i)
+      if (i!=m_MovingAxis && !m_Axes[i].get_matrix_row(id1).test(id2)) return;
+    if (overlap) m_Intersections.insert(Intersection(id1,id2));
+    else         m_Intersections.erase(Intersection(id1,id2));
+  }
   int              m_N;
 
   void toggle_intersections(int id, const kbits& row)
@@ -366,8 +401,10 @@ public:
     return m_Intersections;
   }
 
-  void add_box(int id, const float* pos, float radius)
+  /** Returns false if id is out of the range given at construction */
+  bool add_box(int id, const float* pos, float radius)
   {
+    if (id<0 || id>=m_N) return false;
     // A new box has no intersections yet.  (Its matrix rows may still hold bits from
     // before it was removed, so they can't be read as its previous state.)
     kbits row(m_N);
@@ -375,6 +412,7 @@ public:
       m_Axes[i].add_interval(id,pos[i]-radius,pos[i]+radius);
     get_collisions(id,row);
     toggle_intersections(id,row);
+    return true;
   }
 
   void remove_box(int id)
@@ -389,13 +427,11 @@ public:
 
   void move_box(int id, const float* delta)
   {
-    kbits pre_row(m_N),post_row(m_N);
-    get_collisions(id,pre_row);
-    for(int i=0;i<3;++i)
-      m_Axes[i].move_interval(id,delta[i]);
-    get_collisions(id,post_row);
-    pre_row^=post_row;
-    toggle_intersections(id,pre_row);
+    // Each change of overlap on an axis is checked against the other two axes as it
+    // happens: the pair's full overlap changes only if those overlap.  So the cost is in
+    // the endpoints passed, and a move that passes none does nothing.
+    for(m_MovingAxis=0;m_MovingAxis<3;++m_MovingAxis)
+      m_Axes[m_MovingAxis].move_interval(id,delta[m_MovingAxis],this);
   }
 };
 

@@ -54,17 +54,21 @@ class MultiObjectSystem
 public:
   virtual ~MultiObjectSystem() {}
 
-  /** Adds a model to the system at a specific position.  model is not owned by the system
-      Returns a unique ID of the model, for later move / remove */
+  /** Adds a model to the system at a specific position.  model is not owned by the system,
+      and may be shared by several objects.
+      Returns a unique ID of the model, for later move / remove, or -1 if there is no room */
   virtual int add_object(CollisionModel3D* model, const float* position) = 0;
 
-  /** Adds a model to the system at a specific position.  model is not owned by the system
-      Returns a unique ID of the model, for later move / remove */
+  /** Adds a model to the system, placed by an updater.  model is not owned by the system,
+      and may be shared by several objects.  The object follows its updater: each
+      check_collisions takes up the position it currently returns (so move_object is
+      not needed for it).
+      Returns a unique ID of the model, for later move / remove, or -1 if there is no room */
   virtual int add_object(CollisionModel3D* model, const TransformUpdater* updater) = 0;
 
   /** Adds an object that is not composed of polygons, but can be
       represented by a sphere.
-      Returns a unique ID of the model, for later move / remove */
+      Returns a unique ID of the model, for later move / remove, or -1 if there is no room */
   virtual int add_sphere_object(float radius, const float* position) = 0;
 
   /** Remove model from the system.
@@ -94,6 +98,8 @@ public:
 };
 
 MultiObjectSystem* newSpheresSystem();
+/** Holds at most max_objects objects (up to 65536): adding more returns -1.
+    Its proximity test uses the cubes around the objects' bounding spheres, touching included. */
 MultiObjectSystem* newSweepPruneSystem(int max_objects);
 
 __CD__END
